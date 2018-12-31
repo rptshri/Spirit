@@ -29,6 +29,7 @@ def publish(request, category_id=None):
             pk=category_id)
 
     user = request.user
+    form = cform = None
 
     if request.method == 'POST':
         form = TopicForm(user=user, data=request.POST)
@@ -47,41 +48,38 @@ def publish(request, category_id=None):
             comment = cform.save()
             comment_posted(comment=comment, mentions=cform.mentions)
             return redirect(topic.get_absolute_url())
-    else:
-        form = TopicForm(user=user, initial={'category': category_id})
-        cform = CommentForm()
 
-    context = {
-        'form': form,
-        'cform': cform,
-    }
-
-    return render(request, 'spirit/topic/publish.html', context)
+    return render(request, 'spirit/topic/publish.html', {
+        'form': form or TopicForm(
+            user=user,
+            initial={'category': category_id}),
+        'cform': cform or CommentForm()})
 
 
 @login_required
 def update(request, pk):
     topic = Topic.objects.for_update_or_404(pk, request.user)
+    form = None
 
     if request.method == 'POST':
-        form = TopicForm(user=request.user, data=request.POST, instance=topic)
+        form = TopicForm(
+            user=request.user,
+            data=request.POST,
+            instance=topic)
         category_id = topic.category_id
-
         if form.is_valid():
             topic = form.save()
-
             if topic.category_id != category_id:
-                Comment.create_moderation_action(user=request.user, topic=topic, action=MOVED)
-
+                Comment.create_moderation_action(
+                    user=request.user,
+                    topic=topic,
+                    action=MOVED)
             return redirect(request.POST.get('next', topic.get_absolute_url()))
-    else:
-        form = TopicForm(user=request.user, instance=topic)
 
-    context = {
-        'form': form,
-    }
-
-    return render(request, 'spirit/topic/update.html', context)
+    return render(request, 'spirit/topic/update.html', {
+        'form': form or TopicForm(
+            user=request.user,
+            instance=topic)})
 
 
 def detail(request, pk, slug):
@@ -92,24 +90,20 @@ def detail(request, pk, slug):
 
     utils.topic_viewed(request=request, topic=topic)
 
-    comments = Comment.objects\
-        .for_topic(topic=topic)\
-        .with_likes(user=request.user)\
-        .with_polls(user=request.user)\
-        .order_by('date')
-
+    comments = (
+        Comment.objects
+        .for_topic(topic=topic)
+        .with_likes(user=request.user)
+        .with_polls(user=request.user)
+        .order_by('date'))
     comments = paginate(
         comments,
         per_page=config.comments_per_page,
-        page_number=request.GET.get('page', 1)
-    )
+        page_number=request.GET.get('page', 1))
 
-    context = {
+    return render(request, 'spirit/topic/detail.html', {
         'topic': topic,
-        'comments': comments
-    }
-
-    return render(request, 'spirit/topic/detail.html', context)
+        'comments': comments})
 
 
 def index_active(request):
@@ -117,22 +111,18 @@ def index_active(request):
         .visible()\
         .parents()
 
-    topics = Topic.objects\
-        .visible()\
-        .global_()\
-        .with_bookmarks(user=request.user)\
-        .order_by('-is_globally_pinned', '-last_active')\
-        .select_related('category')
-
+    topics = (
+        Topic.objects
+        .visible()
+        .global_()
+        .with_bookmarks(user=request.user)
+        .order_by('-is_globally_pinned', '-last_active')
+        .select_related('category'))
     topics = yt_paginate(
         topics,
         per_page=config.topics_per_page,
-        page_number=request.GET.get('page', 1)
-    )
+        page_number=request.GET.get('page', 1))
 
-    context = {
+    return render(request, 'spirit/topic/active.html', {
         'categories': categories,
-        'topics': topics
-    }
-
-    return render(request, 'spirit/topic/active.html', context)
+        'topics': topics})

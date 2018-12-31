@@ -25,60 +25,68 @@ User = get_user_model()
 
 @login_required
 def update(request):
-    if request.method == 'POST':
-        uform = UserForm(data=request.POST, instance=request.user)
-        form = UserProfileForm(data=request.POST, instance=request.user.st)
+    uform = form = None
 
+    if request.method == 'POST':
+        uform = UserForm(
+            data=request.POST,
+            instance=request.user)
+        form = UserProfileForm(
+            data=request.POST,
+            instance=request.user.st)
         if all([uform.is_valid(), form.is_valid()]):  # TODO: test!
             uform.save()
             form.save()
-            messages.info(request, _("Your profile has been updated!"))
+            messages.info(
+                request,
+                _("Your profile has been updated!"))
             return redirect(reverse('spirit:user:update'))
-    else:
-        uform = UserForm(instance=request.user)
-        form = UserProfileForm(instance=request.user.st)
 
-    context = {
-        'form': form,
-        'uform': uform
-    }
-
-    return render(request, 'spirit/user/profile_update.html', context)
+    return render(
+        request,
+        'spirit/user/profile_update.html',
+        context={
+            'form': form or UserProfileForm(instance=request.user.st),
+            'uform': uform or UserForm(instance=request.user)})
 
 
 @login_required
 def password_change(request):
-    if request.method == 'POST':
-        form = PasswordChangeForm(user=request.user, data=request.POST)
+    form = None
 
+    if request.method == 'POST':
+        form = PasswordChangeForm(
+            user=request.user,
+            data=request.POST)
         if form.is_valid():
             form.save()
             update_session_auth_hash(request, form.user)
-            messages.info(request, _("Your password has been changed!"))
+            messages.info(
+                request,
+                _("Your password has been changed!"))
             return redirect(reverse('spirit:user:update'))
-    else:
-        form = PasswordChangeForm(user=request.user)
 
-    context = {'form': form, }
-
-    return render(request, 'spirit/user/profile_password_change.html', context)
+    return render(
+        request=request,
+        template_name='spirit/user/profile_password_change.html',
+        context={'form': form or PasswordChangeForm(user=request.user)})
 
 
 @login_required
 def email_change(request):
+    form = None
+
     if request.method == 'POST':
         form = EmailChangeForm(user=request.user, data=request.POST)
-
         if form.is_valid():
             send_email_change_email(request, request.user, form.get_email())
             messages.info(request, _("We have sent you an email so you can confirm the change!"))
             return redirect(reverse('spirit:user:update'))
-    else:
-        form = EmailChangeForm()
 
-    context = {'form': form, }
-
-    return render(request, 'spirit/user/profile_email_change.html', context)
+    return render(
+        request=request,
+        template_name='spirit/user/profile_email_change.html',
+        context={'form': form or EmailChangeForm()})
 
 
 @login_required
@@ -89,14 +97,17 @@ def email_change_confirm(request, token):
     if user_email_change.is_valid(user, token):
         email = user_email_change.get_email()
         form = EmailCheckForm(data={'email': email, })
-
         if form.is_valid():
             user.email = form.get_email()
             user.save()
-            messages.info(request, _("Your email has been changed!"))
+            messages.info(
+                request,
+                _("Your email has been changed!"))
             return redirect(reverse('spirit:user:update'))
 
-    messages.error(request, _("Sorry, we were not able to change your email."))
+    messages.error(
+        request,
+        _("Sorry, we were not able to change your email."))
     return redirect(reverse('spirit:user:update'))
 
 
@@ -111,24 +122,24 @@ def _activity(request, pk, slug, queryset, template, reverse_to, context_name, p
     items = yt_paginate(
         queryset,
         per_page=per_page,
-        page_number=request.GET.get('page', 1)
-    )
+        page_number=request.GET.get('page', 1))
 
-    context = {
-        'p_user': p_user,
-        context_name: items
-    }
-
-    return render(request, template, context)
+    return render(
+        request=request,
+        template_name=template,
+        context={
+            'p_user': p_user,
+            context_name: items})
 
 
 def topics(request, pk, slug):
-    user_topics = Topic.objects\
-        .visible()\
-        .with_bookmarks(user=request.user)\
-        .filter(user_id=pk)\
-        .order_by('-date', '-pk')\
-        .select_related('user__st')
+    user_topics = (
+        Topic.objects
+        .visible()
+        .with_bookmarks(user=request.user)
+        .filter(user_id=pk)
+        .order_by('-date', '-pk')
+        .select_related('user__st'))
 
     return _activity(
         request, pk, slug,
@@ -136,16 +147,16 @@ def topics(request, pk, slug):
         template='spirit/user/profile_topics.html',
         reverse_to='spirit:user:topics',
         context_name='topics',
-        per_page=config.topics_per_page
-    )
+        per_page=config.topics_per_page)
 
 
 def comments(request, pk, slug):
     # todo: test with_polls!
-    user_comments = Comment.objects\
-        .filter(user_id=pk)\
-        .visible()\
-        .with_polls(user=request.user)
+    user_comments = (
+        Comment.objects
+        .filter(user_id=pk)
+        .visible()
+        .with_polls(user=request.user))
 
     return _activity(
         request, pk, slug,
@@ -153,17 +164,17 @@ def comments(request, pk, slug):
         template='spirit/user/profile_comments.html',
         reverse_to='spirit:user:detail',
         context_name='comments',
-        per_page=config.comments_per_page,
-    )
+        per_page=config.comments_per_page,)
 
 
 def likes(request, pk, slug):
     # todo: test with_polls!
-    user_comments = Comment.objects\
-        .filter(comment_likes__user_id=pk)\
-        .visible()\
-        .with_polls(user=request.user)\
-        .order_by('-comment_likes__date', '-pk')
+    user_comments = (
+        Comment.objects
+        .filter(comment_likes__user_id=pk)
+        .visible()
+        .with_polls(user=request.user)
+        .order_by('-comment_likes__date', '-pk'))
 
     return _activity(
         request, pk, slug,
@@ -171,8 +182,7 @@ def likes(request, pk, slug):
         template='spirit/user/profile_likes.html',
         reverse_to='spirit:user:likes',
         context_name='comments',
-        per_page=config.comments_per_page,
-    )
+        per_page=config.comments_per_page,)
 
 
 @login_required
